@@ -21,7 +21,7 @@ class OpenCVWidget(QLabel):
         if not IN_DESIGNER:
             self._enable_edge = False
 
-            self._video_device = '/dev/video1'
+            self._video_device = '/dev/video0'
             self._edge_min_threshold = 190
             self._edge_max_threshold = 200
 
