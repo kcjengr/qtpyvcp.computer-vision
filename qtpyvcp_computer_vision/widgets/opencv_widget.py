@@ -48,10 +48,10 @@ class OpenCVWidget(QLabel):
         w = self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)
         h = self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
-        self.video_size = QSize(w, h)
+        self.video_size = QSize(int(w), int(h))
 
         self.setScaledContents(True)
-        self.setMinimumSize(w, h)
+        self.setMinimumSize(int(w), int(h))
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.display_video_stream)
@@ -102,17 +102,17 @@ class OpenCVWidget(QLabel):
         h = self.video_size.height()
 
         cv2.line(frame,
-                 ((w / 2) + self._v_lines, 0),
-                 ((w / 2) + self._v_lines, h),
+                 (int(w / 2) + self._v_lines, 0),
+                 (int(w / 2) + self._v_lines, h),
                  self._line_color, self._line_thickness)
 
         cv2.line(frame,
-                 (0, (h / 2) - self._h_lines),
-                 (w, (h / 2) - self._h_lines),
+                 (0, int(h / 2) - self._h_lines),
+                 (w, int(h / 2) - self._h_lines),
                  self._line_color, self._line_thickness)
 
         if self._c_radius > 1:
-            cv2.circle(frame, ((w / 2) + self._v_lines, (h / 2) - self._h_lines), self._c_radius, self._line_color,
+            cv2.circle(frame, (int(w / 2) + self._v_lines, int(h / 2) - self._h_lines), self._c_radius, self._line_color,
                        self._line_thickness)
 
     # Slots
