@@ -1,6 +1,7 @@
 import os
 import sys
 import cv2
+import numpy
 
 from qtpy.QtGui import QImage, QPixmap
 from qtpy.QtCore import Qt, QSize, QTimer, Slot
@@ -22,10 +23,19 @@ class OpenCVWidget(QLabel):
             self._enable_edge = False
 
             self._video_device = '/dev/video0'
+            
             self._edge_min_threshold = 190
             self._edge_max_threshold = 200
 
-            self._enable_crosshairs = True
+            self._hole_dp = 1
+            self._hole_min_dist = 20
+            self._hole_param1 = 40
+            self._hole_param2 = 50
+            self._hole_min_radius = 1
+            self._hole_max_radius = 20
+
+            self._enable_crosshairs = False
+            self._enable_hole_detect = True
 
             self._line_color = (255, 127, 0)  # R G B
 
@@ -88,6 +98,9 @@ class OpenCVWidget(QLabel):
 
                     if self._enable_crosshairs is True:
                         self.draw_crosshairs(frame)
+                        
+                    if self._enable_hole_detect is True:
+                        self.hole_detect(frame)
 
                     image = QImage(frame, frame.shape[1], frame.shape[0],
                                    frame.strides[0], QImage.Format_RGB888)
@@ -115,6 +128,22 @@ class OpenCVWidget(QLabel):
             cv2.circle(frame, (int(w / 2) + self._v_lines, int(h / 2) - self._h_lines), self._c_radius, self._line_color,
                        self._line_thickness)
 
+    def hole_detect(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        circles = cv2.HoughCircles(gray,
+                                   cv2.HOUGH_GRADIENT,
+                                   dp=self._hole_dp,
+                                   minDist=self._hole_min_dist,
+                                   param1=self._hole_param1,
+                                   param2=self._hole_param2,
+                                   minRadius=self._hole_min_radius,
+                                   maxRadius=self._hole_max_radius)
+        if circles is not None:
+            circles = numpy.uint16(numpy.around(circles))
+            for i in circles[0,:]:
+                cv2.circle(frame, (i[0], i[1]), i[2], (246, 11, 11), 1)
+                cv2.circle(frame, (i[0], i[1]), 2, (246, 11, 11), 1)
+
     # Slots
 
     @Slot(int)
@@ -137,6 +166,10 @@ class OpenCVWidget(QLabel):
     def enableEdge(self, enabled):
         self._enable_edge = enabled
 
+    @Slot(bool)
+    def enableHole(self, enabled):
+        self._enable_hole_detect = enabled
+
     @Slot(int)
     def setEdgeMinThreshold(self, value):
         self._edge_min_threshold = value
@@ -144,6 +177,30 @@ class OpenCVWidget(QLabel):
     @Slot(int)
     def setEdgeMaxThreshold(self, value):
         self._edge_max_threshold = value
+
+    @Slot(float)
+    def setHoleDp(self, value):
+        self._hole_dp = value
+
+    @Slot(float)
+    def setHoleMinDist(self, value):
+        self._hole_min_dist = value
+
+    @Slot(float)
+    def setHoleParam1(self, value):
+        self._hole_param1 = value
+
+    @Slot(float)
+    def setHoleParam2(self, value):
+        self._hole_param2 = value
+
+    @Slot(int)
+    def setHoleMinRadius(self, value):
+        self._hole_min_radius = value
+
+    @Slot(int)
+    def setHoleMaxRadius(self, value):
+        self._hole_max_radius = value
 
     @Slot(str)
     def setVideoDevice(self, path):
