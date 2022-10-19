@@ -22,9 +22,12 @@ class OpenCVWidget(QLabel):
         if not IN_DESIGNER:
             root_dir = os.path.dirname(os.path.abspath(__file__))
             logo_path = os.path.abspath(os.path.join(root_dir, os.pardir))
-            self.logo = f"{logo_path}/images/no_video.png"
-            self._enable_camera = True
+            self.no_video_image = f"{logo_path}/images/no_video.png"
+            
+            self._enable_camera = False
             self._enable_edge = False
+            self._enable_crosshairs = False
+            self._enable_hole_detect = False
 
             self._video_device = '/dev/video0'
             
@@ -38,9 +41,6 @@ class OpenCVWidget(QLabel):
             self._hole_min_radius = 1
             self._hole_max_radius = 20
 
-            self._enable_crosshairs = False
-            self._enable_hole_detect = True
-
             self._line_color = (255, 127, 0)  # R G B
 
             self._line_thickness = 1
@@ -48,8 +48,6 @@ class OpenCVWidget(QLabel):
             self._h_lines = 0
             self._v_lines = 0
             self._c_radius = 25
-
-            self.setup_camera()
 
     # Video
 
@@ -110,7 +108,9 @@ class OpenCVWidget(QLabel):
                                        frame.strides[0], QImage.Format_RGB888)
     
                     self.setPixmap(QPixmap.fromImage(image))
-            
+        else:
+            self.capture.release()
+            self.setPixmap(QPixmap(self.no_video_image))
     # Helpers
 
     def draw_crosshairs(self, frame):
@@ -154,7 +154,8 @@ class OpenCVWidget(QLabel):
     @Slot(bool)
     def enableCamera(self, enabled):
         self._enable_camera = enabled
-        self.capture.release()
+        if enabled is True:
+            self.setup_camera()
     
     @Slot(int)
     def setHorizontalLine(self, value):

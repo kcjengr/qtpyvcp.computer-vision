@@ -26,6 +26,7 @@ from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFileD
 from qtpyvcp.utilities import logger
 from qtpyvcp.widgets.dialogs.base_dialog import BaseDialog
 
+
 Log = logger.getLogger(__name__)
 
 
@@ -61,16 +62,16 @@ class CalibrateCameraDialog(BaseDialog):
         self.twodpoints = []
          
         #  3D points real world coordinates
-        self.objectp3d = np.zeros((1, self.checkboard[0] * self.checkboard[1],3), np.float32)
+        self.objectp3d = np.zeros((1, self.checkboard[0] * self.checkboard[1], 3), np.float32)
         self.objectp3d[0,:,:2] = np.mgrid[0:self.checkboard[0], 0:self.checkboard[1]].T.reshape(-1, 2)
         
-        self.prev_img_shape = None
+        self.frame = None
+        self.frame_bw = None
 
         self.matrix = None
         self.distortion = None
         self.r_vecs = None
         self.t_vecs = None
-
 
         self.run_label = QLabel("Calibrate Camera")
         self.save_label = QLabel("Save Results")
@@ -79,7 +80,6 @@ class CalibrateCameraDialog(BaseDialog):
         self.save_button = QPushButton("Save")
 
         main_layout = QVBoxLayout()
-
         run_layout = QHBoxLayout()
 
         run_layout.addWidget(self.run_label)
@@ -96,6 +96,8 @@ class CalibrateCameraDialog(BaseDialog):
         self.setLayout(main_layout)
         self.setWindowTitle("Camera Calibration")
 
+        self.open_camera()
+        
         self.save_button.setDisabled(True)
 
         self.run_button.clicked.connect(self.run_calibration)
@@ -109,24 +111,21 @@ class CalibrateCameraDialog(BaseDialog):
         self.capture = cv2.VideoCapture(self.video_device)
 
     def run_calibration(self):
-        self.open_camera()
-        
         self.log.info("Capturing 32 frames")
         self.log.info("large amount of frames can tale long ...")
         
         for i in range(32):
             if self.capture.isOpened():
-                self.save_button.setEnabled(True)
-                result, frame = self.capture.read()
+                result_1, frame = self.capture.read()
         
-                if result is True:
-                    grayColor = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                if result_1 is True:
+                    self.frame_bw = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                  
                     # Find the chess board corners
                     # If desired number of corners are
                     # found in the image then ret = true
-                    result, corners = cv2.findChessboardCorners(
-                                    grayColor, self.checkboard,
+                    result_2, corners = cv2.findChessboardCorners(
+                                    self.frame_bw, self.checkboard,
                                     cv2.CALIB_CB_ADAPTIVE_THRESH
                                     +cv2.CALIB_CB_FAST_CHECK + 
                                     cv2.CALIB_CB_NORMALIZE_IMAGE)
@@ -134,47 +133,40 @@ class CalibrateCameraDialog(BaseDialog):
                     # If desired number of corners can be detected then,
                     # refine the pixel coordinates and display
                     # them on the images of checker board
-                    if result is True:
-                        threedpoints.append(objectp3d)
+                    if result_2 is True:
+                        self.threedpoints.append(self.objectp3d)
                  
                         # Refining pixel coordinates
-                        # for given 2d points.
-                        corners2 = cv2.cornerSubPix(
-                            grayColor, corners, (11, 11), (-1, -1), criteria)
+                        corners2 = cv2.cornerSubPix(self.frame_bw, corners, (11, 11), (-1, -1), self.criteria)
                  
-                        twodpoints.append(corners2)
+                        self.twodpoints.append(corners2)
                  
                         # Draw and display the corners
-                        frame = cv2.drawChessboardCorners(frame,
-                                                          self.checkboard,
-                                                          corners2, ret)
-                 
-        
-                # h, w = frame.shape[:2]
-                
-                self.log.info("Runing calibration")
-                
-                # Perform camera calibration by
-                # passing the value of above found out 3D points (threedpoints)
-                # and its corresponding pixel coordinates of the
-                # detected corners (twodpoints)
-                
-                result, matrix, distortion, r_vecs, t_vecs = cv2.calibrateCamera(self.threedpoints,
-                                                                                 self.twodpoints,
-                                                                                 grayColor.shape[::-1],
-                                                                                 None,
-                                                                                 None)
-                
-                if result is True:
-                    
-                    self.matrix = matrix
-                    self.distortion = ditortion
-                    self.r_vecs = r_vecs
-                    self.t_vecs = tvecs
-                    self.save_button.setEnabled(True)
-            else:
-                self.save_button.setDisabled(True)
+                        self.frame = cv2.drawChessboardCorners(self.frame, self.checkboard, corners2, result_2)
+                else:
+                    self.save_button.setDisabled(True)
 
+        self.log.info("Runing calibration")
+        
+        h, w = self.frame.shape[:2]
+        
+        # Perform camera calibration by
+        # passing the value of above found out 3D points (threedpoints)
+        # and its corresponding pixel coordinates of the
+        # detected corners (twodpoints)
+        
+        result_3, matrix, distortion, r_vecs, t_vecs = cv2.calibrateCamera(self.threedpoints, self.twodpoints, self.frame_bw.shape[::-1], None,  None)
+        
+        if result_3 is True:
+            
+            self.matrix = matrix
+            self.distortion = ditortion
+            self.r_vecs = r_vecs
+            self.t_vecs = tvecs
+            self.capture.release
+            
+        self.save_button.setEnabled(True)
+                
 
     def save_results(self):
         
@@ -183,7 +175,7 @@ class CalibrateCameraDialog(BaseDialog):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
         
-        file_name, _ = QFileDialog.getSaveFileName(self,"QFileDialog.getSaveFileName()","","All Files (*);;Text Files (*.txt)", options=options)
+        file_name, _ = QFileDialog.getSaveFileName(self, "QFileDialog.getSaveFileName()", "", "All Files (*);;Text Files (*.txt)", options=options)
         if file_name:
             with open(file_name, "w") as yaml_file:
                 if self.distortion is not None:
@@ -192,4 +184,3 @@ class CalibrateCameraDialog(BaseDialog):
     def close_method(self):
         
         self.hide()
-
