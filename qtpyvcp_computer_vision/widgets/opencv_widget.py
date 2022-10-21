@@ -23,14 +23,14 @@ class OpenCVWidget(QLabel):
             root_dir = os.path.dirname(os.path.abspath(__file__))
             logo_path = os.path.abspath(os.path.join(root_dir, os.pardir))
             self.no_video_image = f"{logo_path}/images/no_video.png"
-            
+
             self._enable_camera = False
             self._enable_edge = False
             self._enable_crosshairs = False
             self._enable_hole_detect = False
 
             self._video_device = '/dev/video0'
-            
+
             self._edge_min_threshold = 190
             self._edge_max_threshold = 200
 
@@ -82,31 +82,31 @@ class OpenCVWidget(QLabel):
             if self.capture.isOpened():
 
                 result, frame = self.capture.read()
-    
+
                 if result is True:
-    
+
                     if self._enable_edge is True:
                         frame = cv2.Canny(frame, self._edge_min_threshold, self._edge_max_threshold)
-    
+
                         if self._enable_crosshairs is True:
                             self.draw_crosshairs(frame)
-    
+
                         image = QImage(frame.data, self.video_size.width(), self.video_size.height(),
                                        QImage.Format_Indexed8)
-    
+
                     else:
                         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                         frame = cv2.flip(frame, 1)
-    
+
                         if self._enable_crosshairs is True:
                             self.draw_crosshairs(frame)
-                            
+
                         if self._enable_hole_detect is True:
                             self.hole_detect(frame)
-    
+
                         image = QImage(frame, frame.shape[1], frame.shape[0],
                                        frame.strides[0], QImage.Format_RGB888)
-    
+
                     self.setPixmap(QPixmap.fromImage(image))
         else:
             self.capture.release()
@@ -156,7 +156,7 @@ class OpenCVWidget(QLabel):
         self._enable_camera = enabled
         if enabled is True:
             self.setup_camera()
-    
+
     @Slot(int)
     def setHorizontalLine(self, value):
         self._h_lines = value
