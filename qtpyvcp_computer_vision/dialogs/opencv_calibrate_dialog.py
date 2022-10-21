@@ -116,7 +116,7 @@ class CalibrateCameraDialog(BaseDialog):
         self.log.debug("Opening camera device")
 
         # aparently my webcam "showmewebcam on a pi" bugs on opencv 4.6
-        self.capture = cv2.VideoCapture(self.video_device)
+        self.capture = cv2.VideoCapture(self.video_device, cv2.CAP_GSTREAMER)
 
     def run_calibration(self):
         self.log.info("Capturing 32 frames")
