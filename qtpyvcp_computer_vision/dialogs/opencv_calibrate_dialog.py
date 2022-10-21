@@ -21,7 +21,7 @@ import numpy as np
 import yaml
 
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFileDialog
+from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QFileDialog, QLineEdit
 
 from qtpyvcp.utilities import logger
 from qtpyvcp.widgets.dialogs.base_dialog import BaseDialog
@@ -36,7 +36,7 @@ class CalibrateCameraDialog(BaseDialog):
 
         super(CalibrateCameraDialog, self).__init__(parent=parent, stay_on_top=True)
 
-        self.setFixedSize(440, 320)
+        self.setFixedSize(480, 340)
         self.log = LOG
 
         # opencv stuff
@@ -73,6 +73,10 @@ class CalibrateCameraDialog(BaseDialog):
         self.r_vecs = None
         self.t_vecs = None
 
+        self.video_label = QLabel("Device")
+        self.video_input = QLineEdit()
+        self.video_input.setText("/dev/video0")
+
         self.run_label = QLabel("Calibrate Camera")
         self.save_label = QLabel("Save Results")
 
@@ -80,23 +84,27 @@ class CalibrateCameraDialog(BaseDialog):
         self.save_button = QPushButton("Save")
 
         main_layout = QVBoxLayout()
+        settings_layout = QHBoxLayout()
         run_layout = QHBoxLayout()
+        save_layout = QHBoxLayout()
+
+        settings_layout.addWidget(self.video_label)
+        settings_layout.addWidget(self.video_input)
 
         run_layout.addWidget(self.run_label)
         run_layout.addWidget(self.run_button)
 
-        save_layout = QHBoxLayout()
-
         save_layout.addWidget(self.save_label)
         save_layout.addWidget(self.save_button)
 
+        main_layout.addLayout(settings_layout)
         main_layout.addLayout(run_layout)
         main_layout.addLayout(save_layout)
 
         self.setLayout(main_layout)
         self.setWindowTitle("Camera Calibration")
 
-        self.open_camera()
+        # self.open_camera()
 
         self.save_button.setDisabled(True)
 
@@ -105,20 +113,25 @@ class CalibrateCameraDialog(BaseDialog):
 
     def open_camera(self):
 
-        self.log.debug("Open camera device")
+        self.log.debug("Opening camera device")
 
         # aparently my webcam "showmewebcam on a pi" bugs on opencv 4.6
         self.capture = cv2.VideoCapture(self.video_device)
 
     def run_calibration(self):
         self.log.info("Capturing 32 frames")
-        self.log.info("large amount of frames can tale long ...")
+        self.log.info("large amount of frames can take long ...")
+
+        self.open_camera()
 
         for i in range(32):
-            if 1: # self.capture.isOpened():
+            self.log.info("Checking if device is open")
+            if self.capture.isOpened():
+                self.log.info(f"Capture frame {i}")
                 result_1, frame = self.capture.read()
 
                 if result_1 is True:
+                    self.log.info("Got frame")
                     self.frame_bw = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
                     # Find the chess board corners
@@ -146,32 +159,31 @@ class CalibrateCameraDialog(BaseDialog):
                 else:
                     self.save_button.setDisabled(True)
             else:
-                self.log.error("Error runing calibration")
-                return
-
-        self.log.info("Runing calibration")
+                self.log.info("Error getting data")
 
         if self.frame is not None:
             h, w = self.frame.shape[:2]
 
-            # Perform camera calibration by
-            # passing the value of above found out 3D points (threedpoints)
-            # and its corresponding pixel coordinates of the
-            # detected corners (twodpoints)
+        # Perform camera calibration by
+        # passing the value of above found out 3D points (threedpoints)
+        # and its corresponding pixel coordinates of the
+        # detected corners (twodpoints)
 
-            result_3, matrix, distortion, r_vecs, t_vecs = cv2.calibrateCamera(self.threedpoints, self.twodpoints, self.frame_bw.shape[::-1], None,  None)
+        result_3, matrix, distortion, r_vecs, t_vecs = cv2.calibrateCamera(self.threedpoints, self.twodpoints, self.frame_bw.shape[::-1], None,  None)
 
-            if result_3 is True:
+        if result_3 is True:
 
-                self.matrix = matrix
-                self.distortion = ditortion
-                self.r_vecs = r_vecs
-                self.t_vecs = tvecs
-                self.capture.release
+            self.matrix = matrix
+            self.distortion = ditortion
+            self.r_vecs = r_vecs
+            self.t_vecs = tvecs
+            self.capture.release
 
+            self.log.debug("Enable save, got results")
             self.save_button.setEnabled(True)
         else:
-            self.log.error("Error runing calibration")
+            self.log.debug("Disable save, no results")
+            self.save_button.setDisabled(True)
 
 
     def save_results(self):
