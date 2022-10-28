@@ -7,8 +7,8 @@ from qtpy.QtGui import QImage, QPixmap
 from qtpy.QtCore import Qt, QSize, QTimer, Slot
 from qtpy.QtWidgets import QLabel
 
-IN_DESIGNER = os.getenv('DESIGNER', False)
 
+IN_DESIGNER = os.getenv('DESIGNER', False)
 
 class OpenCVWidget(QLabel):
 
@@ -22,6 +22,7 @@ class OpenCVWidget(QLabel):
         if not IN_DESIGNER:
             root_dir = os.path.dirname(os.path.abspath(__file__))
             logo_path = os.path.abspath(os.path.join(root_dir, os.pardir))
+
             self.no_video_image = f"{logo_path}/images/no_video.png"
 
             self._enable_camera = False
@@ -29,6 +30,8 @@ class OpenCVWidget(QLabel):
             self._enable_crosshairs = False
             self._enable_hole_detect = False
             self._enable_slot_detect = False
+            self._contour_min_frames = 5
+            self._contour_frame_count = 0
 
             self._video_device = '/dev/video0'
 
@@ -49,6 +52,8 @@ class OpenCVWidget(QLabel):
             self._h_lines = 0
             self._v_lines = 0
             self._c_radius = 25
+
+            self.setPixmap(QPixmap(self.no_video_image))
 
     # Video
 
@@ -74,7 +79,7 @@ class OpenCVWidget(QLabel):
         return self.video_size
 
     def timerEvent(self, QTimerEvent):
-        print("hello")
+        pass
 
     def display_video_stream(self):
         """Read frame from camera and repaint QLabel widget.
@@ -104,7 +109,7 @@ class OpenCVWidget(QLabel):
 
                         if self._enable_hole_detect is True:
                             self.hole_detect(frame)
-                            
+
                         if self._enable_slot_detect is True:
                             self.slot_detect(frame)
 
@@ -115,7 +120,7 @@ class OpenCVWidget(QLabel):
         else:
             self.capture.release()
             self.setPixmap(QPixmap(self.no_video_image))
-            
+
     # Helpers
 
     def draw_crosshairs(self, frame):
@@ -153,47 +158,58 @@ class OpenCVWidget(QLabel):
                 cv2.circle(frame, (i[0], i[1]), i[2], (246, 11, 11), 1)
                 cv2.circle(frame, (i[0], i[1]), 2, (246, 11, 11), 1)
 
-    def midpoint(ptA, ptB):
+    def midpoint(self, ptA, ptB):
         return ((ptA[0] + ptB[0]) * 0.5, (ptA[1] + ptB[1]) * 0.5)
-    
+
     def slot_detect(self, frame):
-        img  = cv2.pyrMeanShiftFiltering(frame, 21, 51)
-        img  = cv2.GaussianBlur(img, (5,5), 0) 
+        img = cv2.pyrMeanShiftFiltering(frame, 21, 51)
+        img = cv2.GaussianBlur(img, (5, 5), 0)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         (T, threshInv) = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
         contours, hierarchy = cv2.findContours(threshInv, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        
+
         for contour in contours:
+
             area = cv2.contourArea(contour)
-            print(area)
+            # print(area)
             M = cv2.moments(contour)
             x, y, w, h = cv2.boundingRect(contour)
             rect = cv2.minAreaRect(contour)
             box = cv2.boxPoints(rect)
             box = np.int0(box)
-            
+
             if M["m00"] > 0:
-            
+                self._contour_frame_count += 1
+
                 cX = M["m10"] / M["m00"]
                 cY = M["m01"] / M["m00"]
-                
+
                 cv2.drawContours(frame, contour, -1, (0, 255, 0), 2)
                 cv2.circle(frame, (np.int(cX), np.int(cY)), 7, (255, 255, 255), -1)
-                _ ,_ ,angle = cv2.fitEllipse(contour)
-                print(cX , cY, angle)
-                cv2.drawContours(frame, [box],0,(0,0,255),2)
+
+                # at this point we should have at least 5 frames if not take more
+                if self._contour_frame_count < 5:
+                    self._contour_frame_count = 0
+                    continue
+
+                _ , _ , angle = cv2.fitEllipse(contour)
+                # print(cX , cY, angle)
+
+                cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
                 (tl, tr, br, bl) = box
+
                 (tltrX, tltrY) = self.midpoint(tl, tr)
                 (blbrX, blbrY) = self.midpoint(bl, br)
                 (tlblX, tlblY) = self.midpoint(tl, bl)
                 (trbrX, trbrY) = self.midpoint(tr, br)
+
                 cv2.line(frame, (int(tltrX), int(tltrY)), (int(blbrX), int(blbrY)),
                   (0, 255, 255), 1)
                 cv2.line(frame, (int(tlblX), int(tlblY)), (int(trbrX), int(trbrY)),
                   (0, 255, 255), 1)
 
     # Slots
-    
+
     @Slot(bool)
     def enableCamera(self, enabled):
         self._enable_camera = enabled
@@ -223,7 +239,7 @@ class OpenCVWidget(QLabel):
     @Slot(bool)
     def enableHole(self, enabled):
         self._enable_hole_detect = enabled
-        
+
     @Slot(bool)
     def enableSlot(self, enabled):
         self._enable_slot_detect = enabled
