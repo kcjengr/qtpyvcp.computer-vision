@@ -1,6 +1,7 @@
 import os
 import sys
 import cv2
+import math
 import numpy as np
 
 from qtpy.QtGui import QImage, QPixmap
@@ -38,6 +39,8 @@ class OpenCVWidget(QLabel):
             self._edge_min_threshold = 190
             self._edge_max_threshold = 200
 
+            self._crosshairs_center = list()
+
             self._hole_dp = 1
             self._hole_min_dist = 20
             self._hole_param1 = 40
@@ -45,9 +48,16 @@ class OpenCVWidget(QLabel):
             self._hole_min_radius = 1
             self._hole_max_radius = 20
 
+            self._slot_number = 0
+            self._slot_positions = list()
+            self._slot_distance = list()
+            self._slot_index = 0
+
             self._line_color = (255, 127, 0)  # R G B
 
             self._line_thickness = 1
+            self._slot_line_color = (255, 0, 0)  # R G B
+            self._slot_line_thickness = 3
 
             self._h_lines = 0
             self._v_lines = 0
@@ -123,26 +133,49 @@ class OpenCVWidget(QLabel):
 
     # Helpers
 
+    def calculateDistance(self, x1,y1,x2,y2):
+      dist = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+      return dist
+
+    def line_intersection(self, line1, line2):
+
+        xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+        ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
+
+        def det(a, b):
+            return a[0] * b[1] - a[1] * b[0]
+
+        div = det(xdiff, ydiff)
+        if div == 0:
+           raise Exception('lines do not intersect')
+
+        d = (det(*line1), det(*line2))
+        x = int(det(d, xdiff) / div)
+        y = int(det(d, ydiff) / div)
+
+        return x, y
+
     def draw_crosshairs(self, frame):
 
         w = self.video_size.width()
         h = self.video_size.height()
 
-        cv2.line(frame,
-                 (int(w / 2) + self._v_lines, 0),
-                 (int(w / 2) + self._v_lines, h),
-                 self._line_color, self._line_thickness)
+        v_line_p1 = int(w / 2) + self._v_lines, 0
+        v_line_p2 = int(w / 2) + self._v_lines, h
 
-        cv2.line(frame,
-                 (0, int(h / 2) - self._h_lines),
-                 (w, int(h / 2) - self._h_lines),
-                 self._line_color, self._line_thickness)
+        h_line_p1 = 0, int(h / 2) - self._h_lines
+        h_line_p2 = w, int(h / 2) - self._h_lines
+
+        cv2.line(frame, v_line_p1, v_line_p2, self._line_color, self._line_thickness)
+        cv2.line(frame, h_line_p1, h_line_p2, self._line_color, self._line_thickness)
+
+        self._crosshairs_center = self.line_intersection((v_line_p1, v_line_p2), (h_line_p1, h_line_p2))
 
         if self._c_radius > 1:
-            cv2.circle(frame, (int(w / 2) + self._v_lines, int(h / 2) - self._h_lines), self._c_radius, self._line_color,
-                       self._line_thickness)
+            cv2.circle(frame, list(self._crosshairs_center), self._c_radius, self._line_color, self._line_thickness)
 
     def hole_detect(self, frame):
+
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         circles = cv2.HoughCircles(gray,
                                    cv2.HOUGH_GRADIENT,
@@ -158,10 +191,17 @@ class OpenCVWidget(QLabel):
                 cv2.circle(frame, (i[0], i[1]), i[2], (246, 11, 11), 1)
                 cv2.circle(frame, (i[0], i[1]), 2, (246, 11, 11), 1)
 
+
     def midpoint(self, ptA, ptB):
+
         return ((ptA[0] + ptB[0]) * 0.5, (ptA[1] + ptB[1]) * 0.5)
 
+
     def slot_detect(self, frame):
+
+        self._slot_number = 0
+        self._slot_positions.clear()
+
         img = cv2.pyrMeanShiftFiltering(frame, 21, 51)
         img = cv2.GaussianBlur(img, (5, 5), 0)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -171,7 +211,9 @@ class OpenCVWidget(QLabel):
         for contour in contours:
 
             area = cv2.contourArea(contour)
+
             # print(area)
+
             M = cv2.moments(contour)
             x, y, w, h = cv2.boundingRect(contour)
             rect = cv2.minAreaRect(contour)
@@ -179,10 +221,14 @@ class OpenCVWidget(QLabel):
             box = np.int0(box)
 
             if M["m00"] > 0:
+
                 self._contour_frame_count += 1
+                self._slot_number += 1
 
                 cX = M["m10"] / M["m00"]
                 cY = M["m01"] / M["m00"]
+
+                self._slot_positions.append([int(cX), int(cY)])
 
                 cv2.drawContours(frame, contour, -1, (0, 255, 0), 2)
                 cv2.circle(frame, (np.int(cX), np.int(cY)), 7, (255, 255, 255), -1)
@@ -193,6 +239,7 @@ class OpenCVWidget(QLabel):
                     continue
 
                 _ , _ , angle = cv2.fitEllipse(contour)
+
                 # print(cX , cY, angle)
 
                 cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
@@ -203,10 +250,24 @@ class OpenCVWidget(QLabel):
                 (tlblX, tlblY) = self.midpoint(tl, bl)
                 (trbrX, trbrY) = self.midpoint(tr, br)
 
-                cv2.line(frame, (int(tltrX), int(tltrY)), (int(blbrX), int(blbrY)),
-                  (0, 255, 255), 1)
-                cv2.line(frame, (int(tlblX), int(tlblY)), (int(trbrX), int(trbrY)),
-                  (0, 255, 255), 1)
+                cv2.line(frame, (int(tltrX), int(tltrY)), (int(blbrX), int(blbrY)), (0, 255, 255), 1)
+                cv2.line(frame, (int(tlblX), int(tlblY)), (int(trbrX), int(trbrY)), (0, 255, 255), 1)
+
+        self._slot_distance.clear()
+
+        for i, slot in enumerate(self._slot_positions):
+            pos_x, pos_y = slot
+
+            slot_distance =  self.calculateDistance(self._crosshairs_center[0], self._crosshairs_center[1], pos_x, pos_y)
+            self._slot_distance.append(slot_distance)
+
+
+        nearest_point = min(self._slot_distance)
+
+        if nearest_point <= self._c_radius:
+            self._slot_index = self._slot_distance.index(nearest_point)
+            nearest_slot = self._slot_positions[self._slot_index]
+            cv2.line(frame, self._crosshairs_center, nearest_slot, self._slot_line_color, self._slot_line_thickness)
 
     # Slots
 
