@@ -71,7 +71,7 @@ class OpenCVWidget(QLabel):
         """Initialize camera.
         """
 
-        self.capture = cv2.VideoCapture(self._video_device)
+        self.capture = cv2.VideoCapture(self._video_device, cv2.CAP_GSTREAMER)
 
         w = self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)
         h = self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
