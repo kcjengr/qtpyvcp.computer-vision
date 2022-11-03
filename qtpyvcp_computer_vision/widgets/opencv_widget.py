@@ -52,6 +52,7 @@ class OpenCVWidget(QLabel):
             self._slot_positions = list()
             self._slot_distance = list()
             self._slot_index = 0
+            self._slot_nearest = 0
 
             self._line_color = (255, 127, 0)  # R G B
 
@@ -71,7 +72,7 @@ class OpenCVWidget(QLabel):
         """Initialize camera.
         """
 
-        self.capture = cv2.VideoCapture(self._video_device, cv2.CAP_GSTREAMER)
+        self.capture = cv2.VideoCapture(self._video_device)
 
         w = self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)
         h = self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -266,8 +267,8 @@ class OpenCVWidget(QLabel):
 
         if nearest_point <= self._c_radius:
             self._slot_index = self._slot_distance.index(nearest_point)
-            nearest_slot = self._slot_positions[self._slot_index]
-            cv2.line(frame, self._crosshairs_center, nearest_slot, self._slot_line_color, self._slot_line_thickness)
+            self._slot_nearest = self._slot_positions[self._slot_index]
+            cv2.line(frame, self._crosshairs_center, self._slot_nearest, self._slot_line_color, self._slot_line_thickness)
 
     # Slots
 
@@ -304,6 +305,10 @@ class OpenCVWidget(QLabel):
     @Slot(bool)
     def enableSlot(self, enabled):
         self._enable_slot_detect = enabled
+
+    @Slot()
+    def goNearestSlot(self):
+        print(f"MDI: G10 L20 P0 X{self._slot_nearest[0]} Y{self._slot_nearest[1]}")
 
     @Slot(int)
     def setEdgeMinThreshold(self, value):
