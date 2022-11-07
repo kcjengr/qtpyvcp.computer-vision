@@ -8,11 +8,13 @@ from qtpy.QtGui import QImage, QPixmap
 from qtpy.QtCore import Qt, QSize, QTimer, Slot
 from qtpy.QtWidgets import QLabel
 
+from qtpyvcp import hal
+from qtpyvcp.widgets import HALWidget
 from qtpyvcp.utilities.settings import getSetting
 
 IN_DESIGNER = os.getenv('DESIGNER', False)
 
-class OpenCVWidget(QLabel):
+class OpenCVWidget(QLabel, HALWidget):
 
     def __init__(self, parent=None):
         super(OpenCVWidget, self).__init__(parent)
@@ -57,7 +59,7 @@ class OpenCVWidget(QLabel):
             self._slot_positions = list()
             self._slot_distance = list()
             self._slot_index = 0
-            self._slot_nearest = 0
+            self._slot_nearest = None
 
             self._line_color = (255, 127, 0)  # R G B
             self._line_thickness = 1
@@ -287,6 +289,14 @@ class OpenCVWidget(QLabel):
             self._slot_nearest = self._slot_positions[self._slot_index]
             cv2.line(frame, self._crosshairs_center, self._slot_nearest, self._slot_line_color, self._slot_line_thickness)
 
+            if self._get_slot_position.value == 1:
+                self._slot_x.value = self._slot_nearest[0]
+                self._slot_y.value = self._slot_nearest[1]
+
+                self._get_slot_position.value = 0
+                self._enable_slot_detect = False
+                self._enable_crosshairs = False
+
     # Slots
 
     @Slot(bool)
@@ -299,7 +309,7 @@ class OpenCVWidget(QLabel):
 
     @Slot(bool)
     def gstFlag(self, value):
-        self._gst_flag = vaule
+        self._gst_flag = value
 
     @Slot(float)
     def pxmm(self, value):
@@ -373,15 +383,22 @@ class OpenCVWidget(QLabel):
     def setVideoDevice(self, path):
         self._video_device = path
 
+    def getSlot(self, value):
+        if value == 1:
+            self._enable_crosshairs = True
+            self._enable_slot_detect = True
+
     def terminate(self):
-        print ("POOOM")
+        pass
 
+    def initialize(self):
+        comp = hal.getComponent()
+        obj_name = self.getPinBaseName()
 
-if __name__ == "__main__":
-    from qtpy.QtWidgets import QApplication
+        # add getSlotPos.in HAL pin
+        self._get_slot_position = comp.addPin(f"{obj_name}.get_slot", "bit", "in")
+        self._get_slot_position.valueChanged.connect(self.getSlot)
 
-    app = QApplication(sys.argv)
-    win = OpenCVWidget()
-    win.show()
-    sys.exit(app.exec_())
-
+        # add button.out HAL pin
+        self._slot_x = comp.addPin(f"{obj_name}.x.out", "u32", "out")
+        self._slot_y = comp.addPin(f"{obj_name}.y.out", "u32", "out")
