@@ -8,6 +8,7 @@ from qtpy.QtGui import QImage, QPixmap
 from qtpy.QtCore import Qt, QSize, QTimer, Slot
 from qtpy.QtWidgets import QLabel
 
+from qtpyvcp.utilities.settings import getSetting
 
 IN_DESIGNER = os.getenv('DESIGNER', False)
 
@@ -18,7 +19,7 @@ class OpenCVWidget(QLabel):
 
         self.video_size = QSize(320, 240)
 
-        self.setAttribute(Qt.WA_OpaquePaintEvent, True)
+        # self.setAttribute(Qt.WA_OpaquePaintEvent, True)
 
         if not IN_DESIGNER:
             root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -31,22 +32,26 @@ class OpenCVWidget(QLabel):
             self._enable_crosshairs = False
             self._enable_hole_detect = False
             self._enable_slot_detect = False
+
             self._contour_min_frames = 5
             self._contour_frame_count = 0
 
-            self._video_device = '/dev/video0'
+            self._video_device = getSetting('camera.device').value
+            self._gst_flag = getSetting('camera.gst-flag').value
+            self._px_mm = getSetting('camera.px-mm').value
 
-            self._edge_min_threshold = 190
-            self._edge_max_threshold = 200
+            self._edge_min_threshold = getSetting('edje.min-threshold').value
+            self._edge_max_threshold = getSetting('edje.max-threshold').value
+
 
             self._crosshairs_center = list()
 
-            self._hole_dp = 1
-            self._hole_min_dist = 20
-            self._hole_param1 = 40
-            self._hole_param2 = 50
-            self._hole_min_radius = 1
-            self._hole_max_radius = 20
+            self._hole_dp = getSetting('hole.dp').value
+            self._hole_min_dist = getSetting('hole.min-dist').value
+            self._hole_param1 = getSetting('hole.param1').value
+            self._hole_param2 = getSetting('hole.param2').value
+            self._hole_min_radius = getSetting('hole.min-radious').value
+            self._hole_max_radius = getSetting('hole.max-radious').value
 
             self._slot_number = 0
             self._slot_positions = list()
@@ -55,14 +60,14 @@ class OpenCVWidget(QLabel):
             self._slot_nearest = 0
 
             self._line_color = (255, 127, 0)  # R G B
-
             self._line_thickness = 1
+
             self._slot_line_color = (255, 0, 0)  # R G B
             self._slot_line_thickness = 3
 
-            self._h_lines = 0
-            self._v_lines = 0
-            self._c_radius = 25
+            self._h_lines = getSetting('croshairs.vertical').value
+            self._v_lines = getSetting('croshairs.horizontal').value
+            self._c_radius = getSetting('croshairs.radious').value
 
             self.setPixmap(QPixmap(self.no_video_image))
 
@@ -71,20 +76,33 @@ class OpenCVWidget(QLabel):
     def setup_camera(self):
         """Initialize camera.
         """
-
-        self.capture = cv2.VideoCapture(self._video_device)
+        if self._gst_flag:
+            self.capture = cv2.VideoCapture(self._video_device, cv2.CAP_GSTREAMER)
+        else:
+            self.capture = cv2.VideoCapture(self._video_device)
 
         w = self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)
         h = self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
         self.video_size = QSize(int(w), int(h))
 
-        self.setScaledContents(True)
-        self.setMinimumSize(int(w), int(h))
+        # self.setScaledContents(True)
+        #
+        # self.setMinimumSize(int(w), int(h))
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.display_video_stream)
         self.timer.start(30)
+
+    def stop_camera(self):
+        """Initialize camera.
+        """
+        if self.capture:
+
+            self.capture.release()
+            self.capture = None
+            self.setPixmap(QPixmap(self.no_video_image))
+            self.timer.stop()
 
     def minimumSizeHint(self):
         return self.video_size
@@ -129,8 +147,7 @@ class OpenCVWidget(QLabel):
 
                     self.setPixmap(QPixmap.fromImage(image))
         else:
-            self.capture.release()
-            self.setPixmap(QPixmap(self.no_video_image))
+            self.stop_camera()
 
     # Helpers
 
@@ -277,6 +294,16 @@ class OpenCVWidget(QLabel):
         self._enable_camera = enabled
         if enabled is True:
             self.setup_camera()
+        else:
+            self.stop_camera()
+
+    @Slot(bool)
+    def gstFlag(self, value):
+        self._gst_flag = vaule
+
+    @Slot(float)
+    def pxmm(self, value):
+        self._px_mm = vaule
 
     @Slot(int)
     def setHorizontalLine(self, value):
@@ -345,6 +372,9 @@ class OpenCVWidget(QLabel):
     @Slot(str)
     def setVideoDevice(self, path):
         self._video_device = path
+
+    def terminate(self):
+        print ("POOOM")
 
 
 if __name__ == "__main__":
