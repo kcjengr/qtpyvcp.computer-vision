@@ -290,8 +290,8 @@ class OpenCVWidget(QLabel, HALWidget):
             cv2.line(frame, self._crosshairs_center, self._slot_nearest, self._slot_line_color, self._slot_line_thickness)
 
             if self._get_slot_position.value == 1:
-                self._slot_x.value = self._slot_nearest[0]
-                self._slot_y.value = self._slot_nearest[1]
+                self._slot_x.value = self._slot_nearest[0] * self._px_mm
+                self._slot_y.value = self._slot_nearest[1] * self._px_mm
 
                 self._get_slot_position.value = 0
                 self._enable_slot_detect = False
@@ -313,7 +313,7 @@ class OpenCVWidget(QLabel, HALWidget):
 
     @Slot(float)
     def pxmm(self, value):
-        self._px_mm = vaule
+        self._px_mm = value
 
     @Slot(int)
     def setHorizontalLine(self, value):
