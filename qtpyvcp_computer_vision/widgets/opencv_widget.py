@@ -396,9 +396,9 @@ class OpenCVWidget(QLabel, HALWidget):
         obj_name = self.getPinBaseName()
 
         # add getSlotPos.in HAL pin
-        self._get_slot_position = comp.addPin(f"{obj_name}.get_slot", "bit", "in")
+        self._get_slot_position = comp.addPin(f"{obj_name}.slot-get", "bit", "in")
         self._get_slot_position.valueChanged.connect(self.getSlot)
 
         # add button.out HAL pin
-        self._slot_x = comp.addPin(f"{obj_name}.x.out", "u32", "out")
-        self._slot_y = comp.addPin(f"{obj_name}.y.out", "u32", "out")
+        self._slot_x = comp.addPin(f"{obj_name}.x-out", "u32", "out")
+        self._slot_y = comp.addPin(f"{obj_name}.y-out", "u32", "out")
