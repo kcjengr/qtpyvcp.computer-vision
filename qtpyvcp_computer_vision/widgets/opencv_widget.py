@@ -71,6 +71,8 @@ class OpenCVWidget(QLabel, HALWidget):
             self._v_lines = getSetting('croshairs.horizontal').value
             self._c_radius = getSetting('croshairs.radious').value
 
+            self._calibration_distorion = [0.0, 0.0, 0.0, 0.0, 0.0]
+
             self.setPixmap(QPixmap(self.no_video_image))
 
     # Video
@@ -387,6 +389,26 @@ class OpenCVWidget(QLabel, HALWidget):
         if value == 1:
             self._enable_crosshairs = True
             self._enable_slot_detect = True
+
+    @Slot(float)
+    def setCalParam1(self, value):
+        self._calibration_distorion[0] = value
+
+    @Slot(float)
+    def setCalParam4(self, value):
+        self._calibration_distorion[1] = value
+
+    @Slot(float)
+    def setCalParam3(self, value):
+        self._calibration_distorion[2] = value
+
+    @Slot(float)
+    def setCalParam2(self, value):
+        self._calibration_distorion[3] = value
+
+    @Slot(float)
+    def setCalParam5(self, value):
+        self._calibration_distorion[4] = value
 
     def terminate(self):
         pass
