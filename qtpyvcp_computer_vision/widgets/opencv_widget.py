@@ -2,6 +2,7 @@ import os
 import sys
 import cv2
 import math
+import yaml
 import numpy as np
 
 from qtpy.QtGui import QImage, QPixmap
@@ -34,6 +35,7 @@ class OpenCVWidget(QLabel, HALWidget):
             self._enable_crosshairs = False
             self._enable_hole_detect = False
             self._enable_slot_detect = False
+            self._enable_fix_dist = False
 
             self._contour_min_frames = 5
             self._contour_frame_count = 0
@@ -71,7 +73,21 @@ class OpenCVWidget(QLabel, HALWidget):
             self._v_lines = getSetting('croshairs.horizontal').value
             self._c_radius = getSetting('croshairs.radious').value
 
-            self._calibration_distorion = [0.0, 0.0, 0.0, 0.0, 0.0]
+            self._calibration_yaml = getSetting("camera.calibration-file").value
+            self._calibration_patern = getSetting("camera.calibration-pattern").value
+            self._calibration_matrix = []
+            self._calibration_distrorntion = []
+
+            if os.path.exists(self._calibration_yaml):
+                with open(self._calibration_yaml, "r") as calibration_file:
+                    calibration_data = yaml.safe_load(calibration_file)
+
+                    self._calibration_matrix = np.asarray(calibration_data["matrix"])
+                    self._calibration_distrorntion = np.asarray(calibration_data["distortion"])
+
+                    print(self._calibration_matrix)
+                    print(self._calibration_distrorntion)
+
 
             self.setPixmap(QPixmap(self.no_video_image))
 
@@ -123,6 +139,17 @@ class OpenCVWidget(QLabel, HALWidget):
                 result, frame = self.capture.read()
 
                 if result is True:
+
+                    if self._enable_fix_dist is True:
+
+                        h,  w = frame.shape[:2]
+
+                        fixed_matrix, roi = cv2.getOptimalNewCameraMatrix(self._calibration_matrix, self._calibration_distrorntion, (w, h), 1, (w, h))
+                        frame = cv2.undistort(frame, self._calibration_matrix, self._calibration_distrorntion, None, fixed_matrix)
+
+                        x, y, w, h = roi
+
+                        # frame = frame[y:y+h, x:x+w]
 
                     if self._enable_edge is True:
                         frame = cv2.Canny(frame, self._edge_min_threshold, self._edge_max_threshold)
@@ -345,6 +372,10 @@ class OpenCVWidget(QLabel, HALWidget):
     def enableSlot(self, enabled):
         self._enable_slot_detect = enabled
 
+    @Slot(bool)
+    def enableFix(self, enabled):
+        self._enable_fix_dist = enabled
+
     @Slot()
     def goNearestSlot(self):
         print(f"MDI: G10 L20 P0 X{self._slot_nearest[0]} Y{self._slot_nearest[1]}")
@@ -390,25 +421,15 @@ class OpenCVWidget(QLabel, HALWidget):
             self._enable_crosshairs = True
             self._enable_slot_detect = True
 
-    @Slot(float)
-    def setCalParam1(self, value):
-        self._calibration_distorion[0] = value
+    @Slot(str)
+    def setCalibrationYaml(self, value):
+        self._calibration_yaml = value
+        print(self._calibration_yaml)
 
-    @Slot(float)
-    def setCalParam4(self, value):
-        self._calibration_distorion[1] = value
+        with open(self._calibration_yaml, "r") as calibration_file:
+            calibration_data = calibration_file.readlines()
+            print(calibration_data)
 
-    @Slot(float)
-    def setCalParam3(self, value):
-        self._calibration_distorion[2] = value
-
-    @Slot(float)
-    def setCalParam2(self, value):
-        self._calibration_distorion[3] = value
-
-    @Slot(float)
-    def setCalParam5(self, value):
-        self._calibration_distorion[4] = value
 
     def terminate(self):
         pass
