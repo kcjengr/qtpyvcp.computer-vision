@@ -74,7 +74,7 @@ class OpenCVWidget(QLabel, HALWidget):
             self._c_radius = getSetting('croshairs.radious').value
 
             self._calibration_yaml = getSetting("camera.calibration-file").value
-            self._calibration_patern = getSetting("camera.calibration-pattern").value
+
             self._calibration_matrix = []
             self._calibration_distrorntion = []
 
