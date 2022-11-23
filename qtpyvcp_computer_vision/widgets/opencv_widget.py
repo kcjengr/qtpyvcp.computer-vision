@@ -48,7 +48,11 @@ class OpenCVWidget(QLabel, HALWidget):
             self._edge_max_threshold = getSetting('edje.max-threshold').value
 
 
-            self._crosshairs_center = list()
+            self._h_lines = getSetting('croshairs.vertical').value
+            self._v_lines = getSetting('croshairs.horizontal').value
+            self._c_radius = getSetting('croshairs.radious').value
+
+            self._crosshairs_center = [int(self._h_lines), int(self._v_lines)]
 
             self._hole_dp = getSetting('hole.dp').value
             self._hole_min_dist = getSetting('hole.min-dist').value
@@ -68,10 +72,6 @@ class OpenCVWidget(QLabel, HALWidget):
 
             self._slot_line_color = (255, 0, 0)  # R G B
             self._slot_line_thickness = 3
-
-            self._h_lines = getSetting('croshairs.vertical').value
-            self._v_lines = getSetting('croshairs.horizontal').value
-            self._c_radius = getSetting('croshairs.radious').value
 
             self._calibration_yaml = getSetting("camera.calibration-file").value
 
